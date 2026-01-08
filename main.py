@@ -9,7 +9,7 @@ from discord.ui import View, Button
 from discord import ButtonStyle
 from discord import Embed
 
-
+import traceback
 import jsonPython
 
 # jsonPython.add_image("TEST_URL", 123)
@@ -27,8 +27,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 testGeneralID = 1458489167620079699
 
 abamiddag = 1418297877654143127
+abaquotes = 1406944334003310592
 
-channel_ID = testGeneralID
+middag_ID = testGeneralID
+quote_ID =abaquotes
 
 # abacord_ID = bot.get_guild(1404930417215148032)
 
@@ -110,7 +112,7 @@ async def on_message(message):
     if message.author.bot: #ignorer egen melding
         return
     
-    if message.channel.id != channel_ID: #ignoerer melding som ikke er i rett kanal
+    if message.channel.id != middag_ID: #ignoerer melding som ikke er i rett kanal
         return
     
     if not message.attachments: #ignoerer om ikke har attacthment
@@ -121,40 +123,63 @@ async def on_message(message):
         if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")): #om attachtment er bilde
 
             # print(attachment.url,message.author.id)
-            jsonPython.add_image(attachment.url,message.author.id) #kaller på fra jsonPython filen og lgger til imgurl og authorID i json filen
+            jsonPython.add_data(attachment.url,message.author.id) #kaller på fra jsonPython filen og lgger til imgurl og authorID i json filen
             await message.channel.send("lagt til!!!")
     
 @bot.event
 async def on_ready():
-    print(f"{bot.user.name} is ready!")
+    try:
+        print(f"{bot.user.name} is ready!")
 
-    # Hent kanal
-    channel = bot.get_channel(channel_ID)
+        # Hent kanal
+        channel = bot.get_channel(middag_ID)
 
-    # Hent alle meldinger med attachments
-    async for message in channel.history(limit=None):
-        if message.attachments:
-            for attachment in message.attachments:
-                if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+        # Hent alle meldinger med attachments
+        async for message in channel.history(limit=None):
+            if message.attachments:
+                for attachment in message.attachments:
+                    if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
 
-                    existing_urls = {img['image_url'] for img in jsonPython.load_images()} #lager set med alle img urls allerede i json
-                    if attachment.url not in existing_urls:
-                        jsonPython.add_image(attachment.url, message.author.id) #legger til imgurl og author ID til json
+                        existing_urls = {img['content'] for img in jsonPython.load_data("image")} #lager set med alle img urls allerede i json
+                        if attachment.url not in existing_urls:
+                            jsonPython.add_data("image", attachment.url, message.author.id) #legger til imgurl og author ID til json
+        print("All past images added to JSON!")
 
-    
-    print("All past images added to JSON!")
+        channel = bot.get_channel(quote_ID)
+        async for message in channel.history(limit=None):
 
+            if message.mentions:
+                # print(message.mentions)
+                mentoions_IDs = [user.id for user in message.mentions]
+
+                jsonPython.add_data("quote", message.content, mentoions_IDs)
+
+                username_message = message.content
+
+                # for user in message.mentions:
+                    # print((str(user.id),user.name))
+                    # username_message = username_message.replace("<@"+str(user.id)+">",user.name)
+
+                # print(username_message)
+
+                # print("new", message.content, message.mentions)
+        print("All past quotes added to JSON!")
+        
+        
+
+    except Exception as e:
+        print("error",e)
 
 
 
 @bot.command()
-async def spill(ctx):
+async def middag(ctx):
     try:
         # await ctx.send(f"yo {ctx.author.mention}")
         #velger random bilde fra json
-        image = jsonPython.get_random_image()
+        image = jsonPython.get_random_data("image")
         # Velger 3 feil users og den rette
-        all_authors = set([img["author_id"] for img in jsonPython.load_images()])
+        all_authors = set([img["author_id"] for img in jsonPython.load_data("image")])
         print(all_authors)
         all_authors.discard(image["author_id"])
 
@@ -170,14 +195,10 @@ async def spill(ctx):
         # Lager GuessView
         guess_view = GuessView(options_labels, correct_index)
 
-        
-        
-        # await ctx.send(image["image_url"], view=guess_view)
-
         #discord embed gjør formatering med bilder bedre
         embed = Embed(title="Guess the sender!", description="Who sent this image?")
         # embed = Embed(title="Who sent this image?", description="")
-        embed.set_image(url=image["image_url"])
+        embed.set_image(url=image["content"])
         # Bot sender bilde og knappene med tekst
         message = await ctx.send(embed=embed, view=guess_view)
 
@@ -188,7 +209,53 @@ async def spill(ctx):
         raise
 
 
+@bot.command()
+async def quotes(ctx):
+    try:
+        #velger random quote fra json
+        quote = jsonPython.get_random_data("quote")
+        # Velger 3 feil users og den rette
+        all_authors = set([quotee["author_id"][-1] for quotee in jsonPython.load_data("quote")])
+        print(all_authors)
+        all_authors.discard(quote["author_id"][-1])
 
+        k = min(3, len(all_authors))
+
+        wrong_authors = random.sample(list(all_authors), k)
+        options = wrong_authors + [quote["author_id"][-1]]
+        random.shuffle(options)  # tilfeldig rekkeføle på buttons
+        # Gjør ID om til navn
+        options_labels = [(member.nick or member.name) if (member := ctx.guild.get_member(uid)) else bot.get_user(uid).name for uid in options] #sexy oneliner som prøver å bruker nicknames og fallbacker til username
+        correct_index = options.index(quote["author_id"][-1])
+        print(options_labels,correct_index)
+        # Lager GuessView
+        guess_view = GuessView(options_labels, correct_index)
+
+        username_message = quote["content"]
+        print(quote["author_id"])
+        for userID in quote["author_id"]:
+            if userID != quote["author_id"][-1]:
+                member = await ctx.guild.fetch_member(userID)
+                # print(member)
+                username_message = username_message.replace("<@"+str(userID)+">",member.display_name)
+            else:
+                username_message = username_message.replace("<@"+str(userID)+">","Bozo")
+
+        print(username_message)
+
+
+        #discord embed
+        embed = Embed(title="Guess the Bozo who said that!", description=username_message)
+
+        # Bot sender bilde og knappene med tekst
+        message = await ctx.send(embed=embed, view=guess_view)
+
+
+
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise
 
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
