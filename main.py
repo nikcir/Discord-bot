@@ -75,7 +75,8 @@ class GuessView(View):
 
                 # Disabler knapper etter rett gjett
                 for child in self.children: #Knappene laget i innit er children
-                    child.disabled = True #Endrer protertien til knappen til disabled
+                    pass
+                    # child.disabled = True #Endrer protertien til knappen til disabled
                 await interaction.message.edit(view=self) #Discord oppdaterer knappene ved å redigere siden den ikke gjør det ved deafult
             else:
                 await interaction.response.send_message("Wrong guess!", ephemeral=True) #Sender melding som bare spiller ser pga ephemeral=True
@@ -89,8 +90,8 @@ class GuessView(View):
             guild = interaction.guild
             
             #veldig lesbar oneliner som lager en streng med nicknames og anntall gjett som rader med \n 
-            scores = "\n".join("Number of guesses: \n" + f"{(member.nick or member.name) if member else bot.get_user(uid).name}: {value}" for uid, value in self.score_dict.items() if (member := guild.get_member(uid)) or True)
-            print("score", scores)
+            scores = "Number of guesses:\n"+ "\n".join(f"{(member.nick or member.name) if member else bot.get_user(uid).name}: {value}" for uid, value in self.score_dict.items() if (member := guild.get_member(uid)) or True)
+            print(scores)
             await interaction.message.edit(content=scores, view=self)
         except Exception as e:
             print(e)
